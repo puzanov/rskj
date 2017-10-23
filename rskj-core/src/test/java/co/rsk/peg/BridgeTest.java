@@ -46,6 +46,7 @@ import org.mockito.invocation.InvocationOnMock;
 
 import java.io.IOException;
 import java.math.BigInteger;
+import java.time.Instant;
 import java.util.*;
 
 import static org.mockito.Matchers.any;
@@ -306,7 +307,9 @@ public class BridgeTest {
     }
 
     @Test
-    public void getFederationAddress() throws Exception{
+    public void getFederationAddress() throws Exception {
+        // Case with genesis federation
+        Federation federation = bridgeConstants.getGenesisFederation();
         Repository repository = new RepositoryImpl();
         Repository track = repository.startTracking();
 
@@ -315,7 +318,7 @@ public class BridgeTest {
 
         byte[] data = Bridge.GET_FEDERATION_ADDRESS.encode();
 
-        Assert.assertArrayEquals(Bridge.GET_FEDERATION_ADDRESS.encodeOutputs(bridgeConstants.getFederationAddress().toString()), bridge.execute(data));
+        Assert.assertArrayEquals(Bridge.GET_FEDERATION_ADDRESS.encodeOutputs(federation.getAddress().toString()), bridge.execute(data));
     }
 
     @Test
@@ -670,5 +673,52 @@ public class BridgeTest {
         }
         Assert.assertTrue(thrown);
         verify(bridgeSupportMock, never()).getBtcTxHashProcessedHeight(any());
+    }
+
+    @Test
+    public void getFederationSize() throws IOException {
+        Bridge bridge = new Bridge(PrecompiledContracts.BRIDGE_ADDR);
+        bridge.init(null, null, null, null, null, null);
+        BridgeSupport bridgeSupportMock = mock(BridgeSupport.class);
+        Whitebox.setInternalState(bridge, "bridgeSupport", bridgeSupportMock);
+        when(bridgeSupportMock.getFederationSize()).thenReturn(1234);
+
+        Assert.assertEquals(1234, bridge.getFederationSize(new Object[]{}).intValue());
+    }
+
+    @Test
+    public void getFederationThreshold() throws IOException {
+        Bridge bridge = new Bridge(PrecompiledContracts.BRIDGE_ADDR);
+        bridge.init(null, null, null, null, null, null);
+        BridgeSupport bridgeSupportMock = mock(BridgeSupport.class);
+        Whitebox.setInternalState(bridge, "bridgeSupport", bridgeSupportMock);
+        when(bridgeSupportMock.getFederationThreshold()).thenReturn(5678);
+
+        Assert.assertEquals(5678, bridge.getFederationThreshold(new Object[]{}).intValue());
+    }
+
+    @Test
+    public void getFederationCreationTime() throws IOException {
+        Bridge bridge = new Bridge(PrecompiledContracts.BRIDGE_ADDR);
+        bridge.init(null, null, null, null, null, null);
+        BridgeSupport bridgeSupportMock = mock(BridgeSupport.class);
+        Whitebox.setInternalState(bridge, "bridgeSupport", bridgeSupportMock);
+        when(bridgeSupportMock.getFederationCreationTime()).thenReturn(Instant.ofEpochMilli(5000));
+
+        Assert.assertEquals(5000, bridge.getFederationCreationTime(new Object[]{}).intValue());
+    }
+
+    @Test
+    public void getFederatorPublicKey() throws IOException {
+        Bridge bridge = new Bridge(PrecompiledContracts.BRIDGE_ADDR);
+        bridge.init(null, null, null, null, null, null);
+        BridgeSupport bridgeSupportMock = mock(BridgeSupport.class);
+        Whitebox.setInternalState(bridge, "bridgeSupport", bridgeSupportMock);
+        when(bridgeSupportMock.getFederatorPublicKey(any(int.class))).then((InvocationOnMock invocation) ->
+                BigInteger.valueOf(invocation.getArgumentAt(0, int.class)).toByteArray());
+
+        Assert.assertTrue(Arrays.equals(new byte[]{10}, bridge.getFederatorPublicKey(new Object[]{BigInteger.valueOf(10)})));
+        Assert.assertTrue(Arrays.equals(new byte[]{20}, bridge.getFederatorPublicKey(new Object[]{BigInteger.valueOf(20)})));
+        Assert.assertTrue(Arrays.equals(new byte[]{1, 0}, bridge.getFederatorPublicKey(new Object[]{BigInteger.valueOf(256)})));
     }
 }

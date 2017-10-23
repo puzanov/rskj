@@ -18,12 +18,9 @@
 
 package co.rsk.peg;
 
+import co.rsk.bitcoinj.core.*;
 import co.rsk.crypto.Sha3Hash;
 import org.apache.commons.lang3.tuple.Pair;
-import co.rsk.bitcoinj.core.NetworkParameters;
-import co.rsk.bitcoinj.core.Sha256Hash;
-import co.rsk.bitcoinj.core.BtcTransaction;
-import co.rsk.bitcoinj.core.UTXO;
 import org.ethereum.util.RLP;
 import org.ethereum.util.RLPList;
 
@@ -32,7 +29,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigInteger;
+import java.time.Instant;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Created by mario on 20/04/17.
@@ -203,7 +202,7 @@ public class BridgeSerializationUtils {
         if (data == null || data.length == 0)
             return map;
 
-        RLPList rlpList = (RLPList)RLP.decode2(data).get(0);
+        RLPList rlpList = (RLPList) RLP.decode2(data).get(0);
 
         // List size must be even - key, value pairs expected in sequence
         if (rlpList.size() % 2 != 0) {
@@ -213,11 +212,56 @@ public class BridgeSerializationUtils {
         int numEntries = rlpList.size() / 2;
 
         for (int k = 0; k < numEntries; k++) {
-            Sha256Hash hash = Sha256Hash.wrap(rlpList.get(k*2).getRLPData());
-            Long number = new BigInteger(rlpList.get(k*2 + 1).getRLPData()).longValue();
+            Sha256Hash hash = Sha256Hash.wrap(rlpList.get(k * 2).getRLPData());
+            Long number = new BigInteger(rlpList.get(k * 2 + 1).getRLPData()).longValue();
             map.put(hash, number);
         }
 
         return map;
+    }
+
+    // A federation is serialized as a list in the following order:
+    // creation time
+    // # of signatures required
+    // list of public keys -> [pubkey1, pubkey2, ..., pubkeyn], sorted
+    // using the lexicographical order of the public keys (see BtcECKey.PUBKEY_COMPARATOR).
+    public static byte[] serializeFederation(Federation federation) {
+        List<byte[]> publicKeys = federation.getPublicKeys().stream()
+                .sorted(BtcECKey.PUBKEY_COMPARATOR)
+                .map(key -> key.getPubKey())
+                .collect(Collectors.toList());
+        return RLP.encodeList(
+                RLP.encodeBigInteger(BigInteger.valueOf(federation.getCreationTime().toEpochMilli())),
+                RLP.encodeBigInteger(BigInteger.valueOf(federation.getNumberOfSignaturesRequired())),
+                RLP.encodeList((byte[][])publicKeys.toArray(new byte[publicKeys.size()][]))
+        );
+    }
+
+    // For the serialization format, see BridgeSerializationUtils::serializeFederation
+    public static Federation deserializeFederation(byte[] data, Context btcContext) {
+        RLPList rlpList = (RLPList)RLP.decode2(data).get(0);
+
+        if (rlpList.size() != 3) {
+            throw new RuntimeException(String.format("Invalid serialized Federation. Expected 3 elements but got %d", rlpList.size()));
+        }
+
+        byte[] creationTimeBytes = rlpList.get(0).getRLPData();
+        Instant creationTime = Instant.ofEpochMilli(new BigInteger(creationTimeBytes).longValue());
+
+        byte[] numberOfSignaturesRequiredBytes = rlpList.get(1).getRLPData();
+        int numberOfSignaturesRequired =  new BigInteger(numberOfSignaturesRequiredBytes).intValue();
+        if (numberOfSignaturesRequired < 1) {
+            throw new RuntimeException(String.format("Invalid serialized Federation # of signatures required. Expected at least 1, but got %d", numberOfSignaturesRequired));
+        }
+
+        List<BtcECKey> pubKeys = ((RLPList) rlpList.get(2)).stream()
+                .map(pubKeyBytes -> BtcECKey.fromPublicOnly(pubKeyBytes.getRLPData()))
+                .collect(Collectors.toList());
+
+        if (pubKeys.size() < numberOfSignaturesRequired) {
+            throw new RuntimeException(String.format("Invalid serialized Federation # of public keys. Expected at least %d but got %d", numberOfSignaturesRequired, pubKeys.size()));
+        }
+
+        return new Federation(numberOfSignaturesRequired, pubKeys, creationTime, btcContext.getParams());
     }
 }
