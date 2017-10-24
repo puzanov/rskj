@@ -22,6 +22,7 @@ import co.rsk.config.RskSystemProperties;
 import co.rsk.core.WalletFactory;
 import co.rsk.core.bc.PendingStateImpl;
 import co.rsk.mine.MinerClient;
+import co.rsk.mine.MinerServer;
 import co.rsk.net.simples.SimpleBlockProcessor;
 import co.rsk.test.World;
 import co.rsk.test.builders.AccountBuilder;
@@ -908,10 +909,10 @@ public class Web3ImplTest {
         worldManager.setPendingState(pendingState);
         web3.worldManager = worldManager;
 
-        Ethereum ethMock = Mockito.mock(Ethereum.class);
+        Ethereum ethMock = mock(Ethereum.class);
         ProgramResult res = new ProgramResult();
         res.setHReturn(TypeConverter.stringHexToByteArray("0x0000000000000000000000000000000000000000000000000000000064617665"));
-        Mockito.when(ethMock.callConstantCallTransaction(argThat(new TransactionFromMatcher(tx.getSender())), eq(block1))).thenReturn(res);
+        when(ethMock.callConstantCallTransaction(argThat(new TransactionFromMatcher(tx.getSender())), eq(block1))).thenReturn(res);
         web3.eth = ethMock;
 
         Web3.CallArguments argsForCall = new Web3.CallArguments();
@@ -965,10 +966,10 @@ public class Web3ImplTest {
         worldManager.setPendingState(pendingState);
         web3.worldManager = worldManager;
 
-        Ethereum ethMock = Mockito.mock(Ethereum.class);
+        Ethereum ethMock = mock(Ethereum.class);
         ProgramResult res = new ProgramResult();
         res.setHReturn(TypeConverter.stringHexToByteArray("0x0000000000000000000000000000000000000000000000000000000064617665"));
-        Mockito.when(ethMock.callConstantCallTransaction(argThat(new TransactionFromMatcher(tx.getSender())), eq(block1))).thenReturn(res);
+        when(ethMock.callConstantCallTransaction(argThat(new TransactionFromMatcher(tx.getSender())), eq(block1))).thenReturn(res);
         web3.eth = ethMock;
 
         Web3.CallArguments argsForCall = new Web3.CallArguments();
@@ -1019,16 +1020,17 @@ public class Web3ImplTest {
 
     @Test
     public void eth_coinbase()  {
-        String originalCoibase = "1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347";
-        SimpleMinerServer minerServer= new SimpleMinerServer();
-        minerServer.coinbase = originalCoibase;
+        String originalCoinbase = "1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347";
+        MinerServer minerServerMock = mock(MinerServer.class);
+        when(minerServerMock.getCoinbaseAddress()).thenReturn(Hex.decode(originalCoinbase));
 
         Ethereum ethMock = getMockEthereum();
         RskSystemProperties mockProperties = getMockProperties();
 
-        Web3 web3 = new Web3Impl(ethMock, mockProperties, WalletFactory.createWallet(), null, minerServer);
+        Web3 web3 = new Web3Impl(ethMock, mockProperties, WalletFactory.createWallet(), null, minerServerMock);
 
-        Assert.isTrue(web3.eth_coinbase().compareTo("0x" + originalCoibase) == 0, "Not returning coinbase specified on miner server");
+        Assert.isTrue(web3.eth_coinbase().compareTo("0x" + originalCoinbase) == 0, "Not returning coinbase specified on miner server");
+        verify(minerServerMock, times(1)).getCoinbaseAddress();
     }
 
     @Test
@@ -1257,10 +1259,10 @@ public class Web3ImplTest {
         web3.eth = eth;
         SimpleWorldManager worldManager = new SimpleWorldManager();
         BigInteger nonce = BigInteger.ONE;
-        PendingState pendingState = Mockito.mock(PendingState.class);
-        org.ethereum.core.Repository repository = Mockito.mock(org.ethereum.core.Repository.class);
-        Mockito.when(pendingState.getRepository()).thenReturn(repository);
-        Mockito.when(repository.getNonce(Mockito.any())).thenReturn(nonce);
+        PendingState pendingState = mock(PendingState.class);
+        org.ethereum.core.Repository repository = mock(org.ethereum.core.Repository.class);
+        when(pendingState.getRepository()).thenReturn(repository);
+        when(repository.getNonce(Mockito.any())).thenReturn(nonce);
 
         worldManager.setPendingState(pendingState);
         web3.worldManager =  worldManager;
@@ -1305,12 +1307,12 @@ public class Web3ImplTest {
     @Test
     @Ignore
     public void eth_compileSolidity() throws Exception {
-        SystemProperties systemProperties = Mockito.mock(SystemProperties.class);
+        SystemProperties systemProperties = mock(SystemProperties.class);
         String solc = System.getProperty("solc");
         if(StringUtils.isEmpty(solc))
             solc = "/usr/bin/solc";
 
-        Mockito.when(systemProperties.customSolcPath()).thenReturn(solc);
+        when(systemProperties.customSolcPath()).thenReturn(solc);
         Web3Impl web3 = new Web3Impl(new SolidityCompiler(systemProperties), WalletFactory.createWallet());
         String contract = "pragma solidity ^0.4.1; contract rsk { function multiply(uint a) returns(uint d) {   return a * 7;   } }";
 
