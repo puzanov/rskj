@@ -105,7 +105,7 @@ public class ProofOfWorkRule implements BlockValidationRule {
                 RskMiningConstants.RSK_TAG.length -
                 RskMiningConstants.BLOCK_HEADER_HASH_SIZE;
         if (remainingByteCount > RskMiningConstants.MAX_BYTES_AFTER_MERGED_MINING_HASH) {
-            logger.warn("More than 128 bytes after ROOOTSTOCK tag");
+            logger.warn("More than 128 bytes after RSK tag");
             return false;
         }
 
