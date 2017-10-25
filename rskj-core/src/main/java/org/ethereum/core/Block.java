@@ -715,7 +715,7 @@ public class Block {
             for (int i = 0; i < transactions.size(); i++) {
                 Transaction transaction = transactions.get(i);
 
-                txsState.put(RLP.encodeInt(itran), transaction.getEncoded());
+                txsState = txsState.put(RLP.encodeInt(itran), transaction.getEncoded());
                 itran++;
             }
         }
