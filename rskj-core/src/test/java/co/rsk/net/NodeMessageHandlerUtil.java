@@ -1,10 +1,15 @@
 package co.rsk.net;
 
 import co.rsk.net.sync.SyncConfiguration;
+import co.rsk.scoring.PeerScoringManager;
 import co.rsk.test.World;
 import co.rsk.validators.BlockValidationRule;
 import org.ethereum.core.Blockchain;
 import co.rsk.validators.ProofOfWorkRule;
+import org.mockito.Mockito;
+
+import static org.mockito.Matchers.isA;
+import static org.mockito.Mockito.mock;
 
 public class NodeMessageHandlerUtil {
 
@@ -41,7 +46,9 @@ public class NodeMessageHandlerUtil {
         BlockSyncService blockSyncService = new BlockSyncService(store, blockchain, nodeInformation, null);
         NodeBlockProcessor processor = new NodeBlockProcessor(store, blockchain, nodeInformation, blockSyncService);
         ProofOfWorkRule blockValidationRule = new ProofOfWorkRule();
-        SyncProcessor syncProcessor = new SyncProcessor(blockchain, blockSyncService, syncConfiguration, blockValidationRule);
+        PeerScoringManager peerScoringManager = mock(PeerScoringManager.class);
+        Mockito.when(peerScoringManager.hasGoodReputation(isA(NodeID.class))).thenReturn(true);
+        SyncProcessor syncProcessor = new SyncProcessor(blockchain, blockSyncService, peerScoringManager, syncConfiguration, blockValidationRule);
         return new NodeMessageHandler(processor, syncProcessor, null, null, null, null, blockValidationRule);
     }
 }

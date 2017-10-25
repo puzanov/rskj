@@ -113,27 +113,29 @@ public class RskFactory {
     }
 
     private void setupPlayer(RskImpl rsk, String blocksPlayerFileName) {
-        if (blocksPlayerFileName != null) {
-            new Thread(() -> {
-                try (FileBlockPlayer bplayer = new FileBlockPlayer(blocksPlayerFileName)) {
-                    rsk.setIsPlayingBlocks(true);
-
-                    Blockchain bc = rsk.getWorldManager().getBlockchain();
-                    ChannelManager cm = rsk.getChannelManager();
-
-                    for (Block block = bplayer.readBlock(); block != null; block = bplayer.readBlock()) {
-                        ImportResult tryToConnectResult = bc.tryToConnect(block);
-                        if (BlockProcessResult.importOk(tryToConnectResult)) {
-                            cm.broadcastBlock(block, null);
-                        }
-                    }
-                } catch (Exception e) {
-                    logger.error("Error", e);
-                } finally {
-                    rsk.setIsPlayingBlocks(false);
-                }
-            }).start();
+        if (blocksPlayerFileName == null) {
+            return;
         }
+
+        new Thread(() -> {
+            try (FileBlockPlayer bplayer = new FileBlockPlayer(blocksPlayerFileName)) {
+                rsk.setIsPlayingBlocks(true);
+
+                Blockchain bc = rsk.getWorldManager().getBlockchain();
+                ChannelManager cm = rsk.getChannelManager();
+
+                for (Block block = bplayer.readBlock(); block != null; block = bplayer.readBlock()) {
+                    ImportResult tryToConnectResult = bc.tryToConnect(block);
+                    if (BlockProcessResult.importOk(tryToConnectResult)) {
+                        cm.broadcastBlock(block, null);
+                    }
+                }
+            } catch (Exception e) {
+                logger.error("Error", e);
+            } finally {
+                rsk.setIsPlayingBlocks(false);
+            }
+        }).start();
     }
 
     @Bean
@@ -160,8 +162,9 @@ public class RskFactory {
     @Bean
     public SyncProcessor getSyncProcessor(WorldManager worldManager,
                                           BlockSyncService blockSyncService,
+                                          PeerScoringManager peerScoringManager,
                                           SyncConfiguration syncConfiguration) {
-        return new SyncProcessor(worldManager.getBlockchain(), blockSyncService, syncConfiguration, new ProofOfWorkRule());
+        return new SyncProcessor(worldManager.getBlockchain(), blockSyncService, peerScoringManager, syncConfiguration, new ProofOfWorkRule());
     }
 
     @Bean
