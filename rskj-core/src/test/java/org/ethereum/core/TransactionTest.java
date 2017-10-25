@@ -615,6 +615,63 @@ public class TransactionTest {
     }
 
     @Test
+    public void suicideInFailedCall() throws Exception {
+        // check that if a contract is suicide in call which is failed (thus suicide is reverted)
+        // the refund for this suicide is not added
+        /*
+        Original contracts
+
+        pragma solidity ^0.4.3;
+
+        contract B {
+          function f(){
+            suicide(msg.sender);
+          }
+        }
+        contract A {
+          function f(){
+            this.call(bytes4(sha3('bad()')));
+          }
+          function bad() {
+            B b = new B();
+            b.call(bytes4(sha3('f()')));
+            throw;
+          }
+        }
+
+         */
+
+        BigInteger nonce = RskSystemProperties.CONFIG.getBlockchainConfig().getCommonConstants().getInitialNonce();
+        Blockchain blockchain = ImportLightTest.createBlockchain(GenesisLoader.loadGenesis(nonce,
+                getClass().getResourceAsStream("/genesis/genesis-light.json"), false));
+
+        ECKey sender = ECKey.fromPrivate(Hex.decode("3ec771c31cac8c0dba77a69e503765701d3c2bb62435888d4ffa38fed60c445c"));
+        System.out.println("address: " + Hex.toHexString(sender.getAddress()));
+
+        String codeA = "6060604052341561000f57600080fd5b6102fa8061001e6000396000f30060606040526004361061004c576000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff16806326121ff0146100515780639c3674fc14610066575b600080fd5b341561005c57600080fd5b61006461007b565b005b341561007157600080fd5b61007961012f565b005b3073ffffffffffffffffffffffffffffffffffffffff1660405180807f6261642829000000000000000000000000000000000000000000000000000000815250600501905060405180910390207c010000000000000000000000000000000000000000000000000000000090046040518163ffffffff167c010000000000000000000000000000000000000000000000000000000002815260040160006040518083038160008761646e5a03f19250505050565b6000610139610208565b604051809103906000f080151561014f57600080fd5b90508073ffffffffffffffffffffffffffffffffffffffff1660405180807f6628290000000000000000000000000000000000000000000000000000000000815250600301905060405180910390207c010000000000000000000000000000000000000000000000000000000090046040518163ffffffff167c010000000000000000000000000000000000000000000000000000000002815260040160006040518083038160008761646e5a03f19250505050600080fd5b60405160b78061021883390190560060606040523415600e57600080fd5b609b8061001c6000396000f300606060405260043610603f576000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff16806326121ff0146044575b600080fd5b3415604e57600080fd5b60546056565b005b3373ffffffffffffffffffffffffffffffffffffffff16ff00a165627a7a72305820438cee14ed63e702047001b589f7c2909439513b7d15b7578e5d8c827a43b7b80029a165627a7a723058204a2b46346445300bd1acca74868c670c1a5787372034f8a8f1853604fd3722800029";
+        String abiA = "[{\"constant\":false,\"inputs\":[],\"name\":\"f\",\"outputs\":[],\"payable\":false,\"type\":\"function\"},{\"constant\":false,\"inputs\":[],\"name\":\"bad\",\"outputs\":[],\"payable\":false,\"type\":\"function\"}]";
+        String codeB = "60606040523415600e57600080fd5b609b8061001c6000396000f300606060405260043610603f576000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff16806326121ff0146044575b600080fd5b3415604e57600080fd5b60546056565b005b3373ffffffffffffffffffffffffffffffffffffffff16ff00a165627a7a72305820438cee14ed63e702047001b589f7c2909439513b7d15b7578e5d8c827a43b7b80029";
+
+        // create contractA
+        Transaction txA = createTx(blockchain, sender, new byte[0], Hex.decode(codeA));
+        executeTransaction(blockchain, txA);
+
+        // create contractB
+        Transaction tx2 = createTx(blockchain, sender, new byte[0], Hex.decode(codeB));
+        executeTransaction(blockchain, tx2);
+
+        byte[] contractAddress = txA.getContractAddress();
+
+        CallTransaction.Contract contract1 = new CallTransaction.Contract(abiA);
+        byte[] callData = contract1.getByName("f").encode();
+
+        Transaction tx1 = createTx(blockchain, sender, contractAddress, callData, 0);
+        ProgramResult programResult = executeTransaction(blockchain, tx1).getResult();
+
+        Assert.assertEquals(0, programResult.getFutureRefund());
+    }
+
+    @Test
     public void dontLogWhenOutOfGasTest() throws IOException, InterruptedException {
         /*
 
